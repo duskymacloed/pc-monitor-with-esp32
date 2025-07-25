@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trình Hướng Dẫn Tương Tác: PC Monitor qua ESP32</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Neutrals with Teal Accent -->
+    <!-- Application Structure Plan: A tabbed interface is used to separate the project into logical steps: Overview, PC Setup, ESP32 Setup, a Live Demo visualization, and Troubleshooting. This structure prevents overwhelming the user with a long scrollable document and allows them to focus on one part of the project at a time. The Live Demo tab is crucial for engagement, providing a clear visual goal of what the final product will look like. The user flow is non-linear, enabling easy navigation between sections for reference. -->
+    <!-- Visualization & Content Choices: 
+        - Project Architecture (Overview): Goal: Organize. Method: A flowchart made with HTML/CSS (divs, borders, flexbox) to visually represent the system components and data flow. Justification: More intuitive and quicker to understand than a text description. No SVG/Mermaid used.
+        - Code Snippets (Setup Tabs): Goal: Inform. Method: Pre-formatted code blocks with a "Copy Code" button. Justification: Improves user experience by preventing manual copy-paste errors.
+        - Live Stats Dashboard (Demo Tab): Goal: Engage/Inform. Method: Three doughnut charts from Chart.js to represent CPU, RAM, and Disk usage, updated in real-time with simulated data. Justification: Provides a dynamic and visually appealing representation of the final project's output, making the guide more engaging.
+        - Troubleshooting Section: Goal: Organize/Solve. Method: An interactive accordion list. Justification: Keeps the UI clean and allows users to quickly find solutions without reading through irrelevant text.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Be Vietnam Pro', sans-serif;
+            background-color: #fdfcfb;
+            color: #333;
+        }
+        .tab-btn {
+            transition: all 0.3s ease;
+        }
+        .tab-btn.active {
+            border-color: #14b8a6;
+            color: #14b8a6;
+            font-weight: 500;
+        }
+        .code-block {
+            background-color: #2d3748;
+            color: #e2e8f0;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            position: relative;
+        }
+        .copy-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background-color: #4a5568;
+            color: #e2e8f0;
+            border: none;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .copy-btn:hover {
+            background-color: #718096;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 250px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 250px;
+        }
+        .accordion-title {
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        .accordion-item.active .accordion-content {
+            max-height: 500px;
+            transition: max-height 0.5s ease-in;
+        }
+        .arrow-icon {
+            transition: transform 0.3s ease;
+        }
+        .accordion-item.active .arrow-icon {
+            transform: rotate(180deg);
+        }
+    </style>
+</head>
+<body class="bg-amber-50">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-slate-800">Trình Hướng Dẫn Tương Tác</h1>
+            <p class="text-slate-600 mt-2">Hiển thị thông số PC lên màn hình OLED qua ESP32-C3</p>
+        </header>
+
+        <div class="bg-white rounded-xl shadow-lg p-4 sm:p-6">
+            <!-- Tab Navigation -->
+            <div class="border-b border-gray-200 mb-6">
+                <nav class="flex flex-wrap -mb-px" id="tab-nav">
+                    <button data-tab="overview" class="tab-btn active text-slate-600 py-4 px-6 border-b-2 border-transparent hover:border-gray-300 focus:outline-none">Tổng Quan</button>
+                    <button data-tab="pc-setup" class="tab-btn text-slate-600 py-4 px-6 border-b-2 border-transparent hover:border-gray-300 focus:outline-none">1. Cài Đặt PC</button>
+                    <button data-tab="esp32-setup" class="tab-btn text-slate-600 py-4 px-6 border-b-2 border-transparent hover:border-gray-300 focus:outline-none">2. Lập Trình ESP32</button>
+                    <button data-tab="demo" class="tab-btn text-slate-600 py-4 px-6 border-b-2 border-transparent hover:border-gray-300 focus:outline-none">Demo Trực Quan</button>
+                    <button data-tab="troubleshooting" class="tab-btn text-slate-600 py-4 px-6 border-b-2 border-transparent hover:border-gray-300 focus:outline-none">Khắc Phục Sự Cố</button>
+                </nav>
+            </div>
+
+            <!-- Tab Content -->
+            <div id="tab-content">
+                <!-- Overview Tab -->
+                <div id="overview" class="tab-pane active">
+                    <h2 class="text-2xl font-bold mb-4 text-slate-700">Tổng Quan Dự Án</h2>
+                    <p class="text-slate-600 mb-6">
+                        Chào mừng bạn đến với trình hướng dẫn tương tác! Dự án này cho phép bạn xây dựng một hệ thống giám sát không dây, hiển thị các thông số quan trọng của máy tính như CPU, RAM, và dung lượng ổ đĩa lên một màn hình OLED nhỏ gọn. Dữ liệu sẽ được thu thập bởi một script Python trên PC, truyền qua mạng WiFi đến mạch ESP32-C3, và cuối cùng được hiển thị trên màn hình.
+                    </p>
+                    <h3 class="text-xl font-bold mb-4 text-slate-700">Kiến Trúc Hệ Thống</h3>
+                    <div class="flex flex-col md:flex-row items-center justify-center space-y-4 md:space-y-0 md:space-x-4 text-center p-4 bg-slate-50 rounded-lg">
+                        <div class="p-4 bg-white rounded-lg shadow w-48">
+                            <span class="text-4xl">💻</span>
+                            <h4 class="font-bold mt-2">Máy Tính (PC)</h4>
+                            <p class="text-sm text-slate-500">Chạy script Python để thu thập dữ liệu và tạo API.</p>
+                        </div>
+                        <div class="text-2xl font-bold text-teal-500 transform md:rotate-0 rotate-90">&rarr;</div>
+                        <div class="p-4 bg-white rounded-lg shadow w-48">
+                             <span class="text-4xl">📡</span>
+                            <h4 class="font-bold mt-2">WiFi (Mạng LAN)</h4>
+                            <p class="text-sm text-slate-500">Truyền dữ liệu từ PC đến ESP32 qua giao thức HTTP.</p>
+                        </div>
+                        <div class="text-2xl font-bold text-teal-500 transform md:rotate-0 rotate-90">&rarr;</div>
+                        <div class="p-4 bg-white rounded-lg shadow w-48">
+                             <span class="text-4xl">💡</span>
+                            <h4 class="font-bold mt-2">ESP32-C3</h4>
+                            <p class="text-sm text-slate-500">Nhận dữ liệu, xử lý và gửi đến màn hình OLED.</p>
+                        </div>
+                         <div class="text-2xl font-bold text-teal-500 transform md:rotate-0 rotate-90">&rarr;</div>
+                        <div class="p-4 bg-white rounded-lg shadow w-48">
+                             <span class="text-4xl">📺</span>
+                            <h4 class="font-bold mt-2">Màn Hình OLED</h4>
+                            <p class="text-sm text-slate-500">Hiển thị thông số hệ thống một cách trực quan.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PC Setup Tab -->
+                <div id="pc-setup" class="tab-pane hidden">
+                    <h2 class="text-2xl font-bold mb-4 text-slate-700">1. Cài Đặt Phía Máy Tính (Server)</h2>
+                    <p class="text-slate-600 mb-6">
+                        Bước đầu tiên là chuẩn bị máy tính của bạn. Chúng ta sẽ cài đặt các thư viện Python cần thiết và chạy một đoạn mã để tạo ra một máy chủ API. Máy chủ này sẽ lắng nghe các yêu cầu từ ESP32 và trả về thông tin hệ thống dưới dạng dữ liệu JSON.
+                    </p>
+                    <h3 class="text-lg font-semibold mb-2 text-slate-700">1.1. Cài đặt thư viện Python</h3>
+                    <p class="text-slate-600 mb-2">Mở Command Prompt hoặc Terminal và chạy lệnh sau:</p>
+                    <div class="code-block mb-6">
+                        <pre><code>pip install psutil Flask</code></pre>
+                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                    </div>
+
+                    <h3 class="text-lg font-semibold mb-2 text-slate-700">1.2. Mã nguồn Python (`pc_monitor.py`)</h3>
+                    <p class="text-slate-600 mb-2">Tạo một tệp mới tên là `pc_monitor.py` và dán mã nguồn bên dưới vào.</p>
+                    <div class="code-block mb-6">
+                        <pre><code>from flask import Flask, jsonify
+import psutil
+import socket
+
+app = Flask(__name__)
+
+@app.route('/pc_info')
+def get_pc_info():
+    cpu_percent = psutil.cpu_percent(interval=1)
+    ram_virtual = psutil.virtual_memory()
+    ram_total_gb = round(ram_virtual.total / (1024**3), 2)
+    ram_used_gb = round(ram_virtual.used / (1024**3), 2)
+    ram_percent = ram_virtual.percent
+    try:
+        disk_usage = psutil.disk_usage('/')
+        disk_total_gb = round(disk_usage.total / (1024**3), 2)
+        disk_used_gb = round(disk_usage.used / (1024**3), 2)
+        disk_percent = disk_usage.percent
+    except Exception:
+        disk_total_gb, disk_used_gb, disk_percent = 0.0, 0.0, 0.0
+    
+    ip_address = "N/A"
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip_address = s.getsockname()[0]
+        s.close()
+    except Exception:
+        pass
+
+    data = {
+        "cpu_percent": cpu_percent,
+        "ram_total_gb": ram_total_gb,
+        "ram_used_gb": ram_used_gb,
+        "ram_percent": ram_percent,
+        "disk_total_gb": disk_total_gb,
+        "disk_used_gb": disk_used_gb,
+        "disk_percent": disk_percent,
+        "ip_address": ip_address
+    }
+    return jsonify(data)
+
+if __name__ == '__main__':
+    host_ip = "127.0.0.1"
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        host_ip = s.getsockname()[0]
+        s.close()
+    except Exception:
+        pass
+    print(f"PC Monitor API running on http://{host_ip}:5000")
+    print("Đảm bảo tường lửa của bạn cho phép kết nối đến cổng 5000.")
+    app.run(host='0.0.0.0', port=5000)</code></pre>
+                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                    </div>
+                     <h3 class="text-lg font-semibold mb-2 text-slate-700">1.3. Chạy Script</h3>
+                     <p class="text-slate-600 mb-2">Chạy script bằng lệnh sau và **ghi lại địa chỉ IP** mà nó hiển thị. Bạn sẽ cần địa chỉ này cho bước tiếp theo.</p>
+                     <div class="code-block mb-4">
+                        <pre><code>python pc_monitor.py</code></pre>
+                         <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                    </div>
+                    <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-md" role="alert">
+                      <p class="font-bold">Quan trọng!</p>
+                      <p>Đảm bảo tường lửa (Firewall) trên PC của bạn cho phép kết nối đến cổng 5000, nếu không ESP32 sẽ không thể truy cập được.</p>
+                    </div>
+                </div>
+
+                <!-- ESP32 Setup Tab -->
+                <div id="esp32-setup" class="tab-pane hidden">
+                    <h2 class="text-2xl font-bold mb-4 text-slate-700">2. Lập Trình ESP32-C3 (Client)</h2>
+                    <p class="text-slate-600 mb-6">
+                        Bây giờ, chúng ta sẽ lập trình cho "bộ não" của hệ thống. Mã nguồn Arduino dưới đây sẽ giúp ESP32-C3 kết nối vào mạng WiFi của bạn, định kỳ gửi yêu cầu đến máy chủ API trên PC, sau đó phân tích và hiển thị dữ liệu nhận được lên màn hình OLED.
+                    </p>
+                    <div class="grid md:grid-cols-2 gap-8">
+                        <div>
+                            <h3 class="text-lg font-semibold mb-2 text-slate-700">2.1. Kết nối phần cứng</h3>
+                            <p class="text-slate-600 mb-4">Kết nối màn hình OLED với ESP32-C3 Supermini của bạn như sau:</p>
+                            <div class="space-y-2 text-sm p-4 bg-slate-50 rounded-lg">
+                                <p><span class="font-semibold text-teal-600">ESP32 GPIO 21 (SCL)</span> &rarr; <span class="font-semibold">OLED SCL</span></p>
+                                <p><span class="font-semibold text-teal-600">ESP32 GPIO 20 (SDA)</span> &rarr; <span class="font-semibold">OLED SDA</span></p>
+                                <p><span class="font-semibold text-red-600">ESP32 5V/3.3V</span> &rarr; <span class="font-semibold">OLED VCC</span></p>
+                                <p><span class="font-semibold text-slate-800">ESP32 GND</span> &rarr; <span class="font-semibold">OLED GND</span></p>
+                            </div>
+                             <h3 class="text-lg font-semibold mt-6 mb-2 text-slate-700">2.2. Cài đặt thư viện Arduino</h3>
+                             <p class="text-slate-600 mb-4">Mở Arduino IDE, vào `Sketch > Include Library > Manage Libraries...` và cài đặt các thư viện sau:</p>
+                             <ul class="list-disc list-inside text-slate-600 space-y-1">
+                                <li>Adafruit SSD1306</li>
+                                <li>Adafruit GFX</li>
+                                <li>ArduinoJson</li>
+                             </ul>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold mb-2 text-slate-700">2.3. Mã nguồn Arduino</h3>
+                            <p class="text-slate-600 mb-2">Sao chép mã nguồn này vào Arduino IDE. Đừng quên thay thế thông tin WiFi và địa chỉ IP của PC.</p>
+                            <div class="code-block h-[400px] overflow-auto">
+                                <pre><code>#include &lt;WiFi.h&gt;
+#include &lt;HTTPClient.h&gt;
+#include &lt;Wire.h&gt;
+#include &lt;Adafruit_GFX.h&gt;
+#include &lt;Adafruit_SSD1306.h&gt;
+#include &lt;ArduinoJson.h&gt;
+
+// --- THAY THẾ THÔNG TIN CỦA BẠN VÀO ĐÂY ---
+const char* ssid = "YOUR_SSID";
+const char* password = "YOUR_PASSWORD";
+const char* pc_server_ip = "YOUR_PC_IP_ADDRESS";
+// -----------------------------------------
+
+const int pc_server_port = 5000;
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET -1
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+const long updateInterval = 5000;
+unsigned long lastUpdate = 0;
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin(20, 21); // SDA=20, SCL=21
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println(F("SSD1306 allocation failed"));
+    for (;;);
+  }
+  display.display();
+  delay(1000);
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+  display.println("Connecting to WiFi...");
+  display.display();
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500); Serial.print(".");
+  }
+  Serial.println("WiFi connected!");
+  display.clearDisplay();
+  display.setCursor(0,0);
+  display.println("WiFi Connected!");
+  display.display();
+  delay(1000);
+}
+
+void loop() {
+  if (millis() - lastUpdate > updateInterval) {
+    lastUpdate = millis();
+    updatePCInfo();
+  }
+}
+
+void updatePCInfo() {
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    String serverPath = "http://" + String(pc_server_ip) + ":" + String(pc_server_port) + "/pc_info";
+    http.begin(serverPath.c_str());
+    int httpResponseCode = http.GET();
+    if (httpResponseCode > 0) {
+      String payload = http.getString();
+      StaticJsonDocument<256> doc;
+      DeserializationError error = deserializeJson(doc, payload);
+      if (error) {
+        Serial.print(F("deserializeJson() failed: "));
+        Serial.println(error.f_str());
+        return;
+      }
+      float cpu = doc["cpu_percent"];
+      float ram_p = doc["ram_percent"];
+      float disk_p = doc["disk_percent"];
+      displayPCInfo(cpu, ram_p, disk_p);
+    } else {
+      Serial.print("Error code: ");
+      Serial.println(httpResponseCode);
+    }
+    http.end();
+  }
+}
+
+void displayPCInfo(float cpu, float ram, float disk) {
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    
+    // CPU
+    display.setCursor(0, 0);
+    display.print("CPU: ");
+    display.print(cpu, 1);
+    display.println("%");
+
+    // RAM
+    display.setCursor(0, 18);
+    display.print("RAM: ");
+    display.print(ram, 1);
+    display.println("%");
+
+    // DISK
+    display.setCursor(0, 36);
+    display.print("DISK: ");
+    display.print(disk, 1);
+    display.println("%");
+
+    display.display();
+}</code></pre>
+                                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Demo Tab -->
+                <div id="demo" class="tab-pane hidden">
+                    <h2 class="text-2xl font-bold mb-4 text-slate-700">Demo Trực Quan</h2>
+                    <p class="text-slate-600 mb-6">
+                        Đây là bảng điều khiển mô phỏng những gì bạn sẽ thấy trên màn hình OLED của mình. Các đồng hồ đo sẽ tự động cập nhật mỗi vài giây để minh họa cách hệ thống hoạt động trong thực tế, giúp bạn có một cái nhìn trực quan về kết quả cuối cùng của dự án.
+                    </p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 text-center">
+                        <div class="bg-slate-50 p-4 rounded-lg">
+                            <h3 class="text-lg font-semibold text-slate-700">CPU Usage</h3>
+                            <div class="chart-container"><canvas id="cpuChart"></canvas></div>
+                        </div>
+                        <div class="bg-slate-50 p-4 rounded-lg">
+                            <h3 class="text-lg font-semibold text-slate-700">RAM Usage</h3>
+                            <div class="chart-container"><canvas id="ramChart"></canvas></div>
+                        </div>
+                        <div class="bg-slate-50 p-4 rounded-lg">
+                            <h3 class="text-lg font-semibold text-slate-700">Disk Usage</h3>
+                            <div class="chart-container"><canvas id="diskChart"></canvas></div>
+                        </div>
+                    </div>
+                    <div class="mt-8 p-4 bg-slate-100 rounded-lg text-center">
+                        <p class="text-slate-600">IP Máy chủ PC: <span id="demo-pc-ip" class="font-mono bg-white px-2 py-1 rounded">192.168.1.100</span></p>
+                        <p class="text-slate-600 mt-2">Trạng thái: <span class="text-green-600 font-semibold">Đang nhận dữ liệu...</span></p>
+                    </div>
+                </div>
+
+                <!-- Troubleshooting Tab -->
+                <div id="troubleshooting" class="tab-pane hidden">
+                    <h2 class="text-2xl font-bold mb-4 text-slate-700">Khắc Phục Sự Cố</h2>
+                    <p class="text-slate-600 mb-6">
+                        Gặp sự cố? Đừng lo lắng. Dưới đây là một số vấn đề thường gặp và cách giải quyết chúng. Nhấp vào từng mục để xem chi tiết.
+                    </p>
+                    <div id="accordion" class="space-y-2">
+                        <div class="accordion-item border rounded-lg">
+                            <div class="accordion-title p-4 bg-slate-50">
+                                <span class="font-semibold text-slate-700">ESP32 không kết nối được WiFi?</span>
+                                <span class="arrow-icon text-teal-500">&#9660;</span>
+                            </div>
+                            <div class="accordion-content p-4 border-t">
+                                <p class="text-slate-600">Hãy chắc chắn rằng tên WiFi (SSID) và mật khẩu bạn nhập vào mã nguồn Arduino là chính xác. ESP32 và máy tính của bạn phải được kết nối vào cùng một mạng WiFi.</p>
+                            </div>
+                        </div>
+                        <div class="accordion-item border rounded-lg">
+                            <div class="accordion-title p-4 bg-slate-50">
+                                <span class="font-semibold text-slate-700">Màn hình OLED không hiển thị gì?</span>
+                                <span class="arrow-icon text-teal-500">&#9660;</span>
+                            </div>
+                            <div class="accordion-content p-4 border-t">
+                                <p class="text-slate-600">Kiểm tra lại các kết nối vật lý: SCL &rarr; GPIO21, SDA &rarr; GPIO20, VCC &rarr; 5V/3.3V, GND &rarr; GND. Đảm bảo bạn đã cài đặt các thư viện `Adafruit SSD1306` và `Adafruit GFX`.</p>
+                            </div>
+                        </div>
+                        <div class="accordion-item border rounded-lg">
+                            <div class="accordion-title p-4 bg-slate-50">
+                                <span class="font-semibold text-slate-700">ESP32 báo lỗi HTTP hoặc JSON?</span>
+                                <span class="arrow-icon text-teal-500">&#9660;</span>
+                            </div>
+                            <div class="accordion-content p-4 border-t">
+                                <p class="text-slate-600">Lỗi này thường do ESP32 không thể kết nối đến máy chủ Python trên PC. Hãy kiểm tra:
+                                <ul class="list-disc list-inside mt-2 space-y-1">
+                                    <li>Địa chỉ IP của PC trong mã nguồn Arduino có chính xác không.</li>
+                                    <li>Script Python `pc_monitor.py` có đang chạy trên PC không.</li>
+                                    <li>Quan trọng nhất: Tường lửa (Firewall) trên PC của bạn có đang chặn kết nối đến cổng 5000 không. Hãy tạm thời tắt tường lửa hoặc tạo một quy tắc cho phép kết nối này.</li>
+                                </ul>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const tabs = document.querySelectorAll('.tab-btn');
+        const panes = document.querySelectorAll('.tab-pane');
+
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const targetPane = document.getElementById(tab.dataset.tab);
+
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+
+                panes.forEach(p => p.classList.add('hidden'));
+                targetPane.classList.remove('hidden');
+            });
+        });
+        
+        function copyCode(button) {
+            const pre = button.previousElementSibling;
+            const code = pre.innerText;
+            navigator.clipboard.writeText(code).then(() => {
+                button.innerText = 'Copied!';
+                setTimeout(() => {
+                    button.innerText = 'Copy';
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+            });
+        }
+
+        const accordionItems = document.querySelectorAll('.accordion-item');
+        accordionItems.forEach(item => {
+            const title = item.querySelector('.accordion-title');
+            title.addEventListener('click', () => {
+                const currentlyActive = document.querySelector('.accordion-item.active');
+                if (currentlyActive && currentlyActive !== item) {
+                    currentlyActive.classList.remove('active');
+                }
+                item.classList.toggle('active');
+            });
+        });
+
+        // Chart.js Demo
+        let cpuChart, ramChart, diskChart;
+
+        function createChart(ctx, label) {
+            return new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: [label, ''],
+                    datasets: [{
+                        data: [0, 100],
+                        backgroundColor: ['#14b8a6', '#e5e7eb'],
+                        borderColor: ['#14b8a6', '#e5e7eb'],
+                        borderWidth: 1,
+                        circumference: 180,
+                        rotation: 270,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: false }
+                    },
+                    animation: {
+                        duration: 500
+                    }
+                },
+                plugins: [{
+                    id: 'doughnutLabel',
+                    beforeDraw: (chart) => {
+                        const { width, height, ctx } = chart;
+                        ctx.restore();
+                        const value = chart.data.datasets[0].data[0];
+                        const text = `${Math.round(value)}%`;
+                        ctx.font = `bold ${width / 5}px sans-serif`;
+                        ctx.textBaseline = 'middle';
+                        ctx.textAlign = 'center';
+                        ctx.fillStyle = '#374151';
+                        ctx.fillText(text, width / 2, height * 0.8);
+                        ctx.save();
+                    }
+                }]
+            });
+        }
+
+        function updateCharts() {
+            const charts = [cpuChart, ramChart, diskChart];
+            charts.forEach(chart => {
+                if(chart) {
+                    const newValue = Math.random() * 100;
+                    chart.data.datasets[0].data[0] = newValue;
+                    chart.data.datasets[0].data[1] = 100 - newValue;
+                    chart.update();
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const cpuCtx = document.getElementById('cpuChart')?.getContext('2d');
+            const ramCtx = document.getElementById('ramChart')?.getContext('2d');
+            const diskCtx = document.getElementById('diskChart')?.getContext('2d');
+            
+            if(cpuCtx && ramCtx && diskCtx) {
+                cpuChart = createChart(cpuCtx, 'CPU');
+                ramChart = createChart(ramCtx, 'RAM');
+                diskChart = createChart(diskCtx, 'Disk');
+                
+                updateCharts();
+                setInterval(updateCharts, 3000);
+            }
+        });
+    </script>
+</body>
+</html>
